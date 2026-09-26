@@ -1,0 +1,24 @@
+[package]
+name = "winit-async"
+version = "0.1.0"
+authors = ["Jayce Fayne <jayce.fayne@mailbox.org>"]
+repository = "https://github.com/jaycefayne/winit-async"
+edition = "2024"
+description = "An async runtime based on the winit event loop."
+license = "MIT"
+categories = ["asynchronous", "concurrency", "gui"]
+keywords = ["asynchronous", "single-threaded", "futures", "windowing"]
+readme = "README.md"
+
+[dependencies]
+winit = "0.30"
+async-local-channel = "0.9"
+async-local-executor = "0.2"
+smallvec = { version = "1", features = ["const_new", "union"] }
+
+[features]
+tokio = ["async-local-executor/tokio"]
+
+[dev-dependencies]
+anyhow = "1"
+vello = { version = "0.10", features = ["wgpu"] }
