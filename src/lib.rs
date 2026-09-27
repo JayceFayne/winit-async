@@ -1,3 +1,4 @@
+#![doc = include_str!("../README.md")]
 //#![warn(clippy::all, clippy::pedantic)]
 #![allow(clippy::missing_transmute_annotations)]
 
