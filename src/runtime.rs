@@ -16,18 +16,22 @@ enum State {
     #[default]
     Suspended,
     Resumed,
+    Undefined,
 }
 
 impl State {
     const fn is_resumed(self) -> bool {
         match self {
-            State::Suspended => false,
-            State::Resumed => true,
+            Self::Resumed => true,
+            Self::Suspended | Self::Undefined => false,
         }
     }
 
     const fn is_suspended(self) -> bool {
-        !self.is_resumed()
+        match self {
+            Self::Suspended => true,
+            Self::Resumed | Self::Undefined => false,
+        }
     }
 }
 
@@ -59,7 +63,7 @@ impl Runtime {
             suspended: ChannelPair::new(watch::channel()),
             window_events: Map::new(),
             device_events: None,
-            state: State::Suspended,
+            state: State::Undefined,
         }
     }
 
