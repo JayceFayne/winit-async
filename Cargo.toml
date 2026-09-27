@@ -13,8 +13,8 @@ readme = "README.md"
 [dependencies]
 winit = "0.30"
 async-local-channel = "0.9"
-async-local-executor = "0.2"
 smallvec = { version = "1", features = ["const_new", "union"] }
+async-local-executor = "0.3"
 
 [features]
 tokio = ["async-local-executor/tokio"]

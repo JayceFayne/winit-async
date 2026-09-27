@@ -10,7 +10,6 @@ mod tls;
 mod window;
 
 use crate::tls::runtime;
-use runtime::run;
 use std::future::pending;
 use winit::error::OsError;
 use winit::event_loop::{DeviceEvents, OwnedDisplayHandle};
@@ -20,6 +19,10 @@ use winit::window::{CustomCursor, CustomCursorSource, Theme, Window, WindowAttri
 pub use crate::device::DeviceEventListener;
 pub use async_local_executor::{JoinHandle, TaskHandle, spawn_local};
 pub use error::Error;
+#[cfg(not(target_arch = "wasm32"))]
+pub use runtime::native::run_app;
+#[cfg(target_arch = "wasm32")]
+pub use runtime::web::run_app;
 pub use window::{WindowEventFuture, WindowEvents, WindowExtAsync};
 pub use winit;
 
@@ -82,21 +85,4 @@ pub async fn suspended() {
 #[inline]
 pub fn device_events() -> Option<DeviceEventListener> {
     DeviceEventListener::new()
-}
-
-#[inline]
-pub fn run_app<E, F>(future: F) -> Result<(), Error<E>>
-where
-    F: IntoFuture<Output = Result<(), E>> + 'static,
-{
-    let future = async move {
-        let result = future.await;
-        runtime().event_loop().exit();
-        result
-    };
-    let handle = run(future).map_err(Error::EventLoop)?;
-    let Some(result) = handle.result() else {
-        return Ok(());
-    };
-    result.map_err(Error::App)
 }
