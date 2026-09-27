@@ -1,5 +1,6 @@
 use crate::runtime::Runtime;
 use std::cell::Cell;
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::{mem, ptr};
 
@@ -47,12 +48,23 @@ const fn no_runtime<T>() -> T {
 pub fn runtime() -> RuntimeGuard {
     try_runtime().unwrap_or_else(no_runtime)
 }
+pub struct EnterGuard<'a> {
+    marker: PhantomData<&'a mut Runtime>,
+}
+
+impl Drop for EnterGuard<'_> {
+    fn drop(&mut self) {
+        let _ = RUNTIME.try_with(Cell::take);
+    }
+}
 
 impl Runtime {
-    pub fn run_in<O, F: FnOnce() -> O>(&mut self, fun: F) -> O {
+    #[inline]
+    pub fn enter(&mut self) -> EnterGuard<'_> {
         let prev = RUNTIME.replace(Some(unsafe { mem::transmute(self) }));
-        let ret = fun();
-        RUNTIME.replace(prev).unwrap_or_else(no_runtime);
-        ret
+        assert!(prev.is_none(), "there can only be one runtime present");
+        EnterGuard {
+            marker: PhantomData,
+        }
     }
 }

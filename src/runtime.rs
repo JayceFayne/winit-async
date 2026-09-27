@@ -1,8 +1,11 @@
 use crate::map::Map;
+use crate::tls::runtime;
 use async_local_channel::{spsc, watch};
+use async_local_executor::run_ready_tasks;
 use std::fmt::Debug;
 use std::mem;
-use winit::event::{DeviceEvent, DeviceId, WindowEvent};
+use winit::application::ApplicationHandler;
+use winit::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
@@ -75,7 +78,8 @@ impl Runtime {
         self.event_loop = Some(unsafe { mem::transmute(event_loop) });
     }
 
-    fn resumed(&mut self) {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.set_event_loop(event_loop);
         self.state = State::Resumed;
         self.resumed.tx.send(()).unwrap();
     }
@@ -88,7 +92,8 @@ impl Runtime {
         }
     }
 
-    fn suspended(&mut self) {
+    fn suspended(&mut self, event_loop: &ActiveEventLoop) {
+        self.set_event_loop(event_loop);
         self.state = State::Suspended;
         self.suspended.tx.send(()).unwrap();
     }
@@ -126,7 +131,13 @@ impl Runtime {
         Some(rx.activate())
     }
 
-    fn device_event(&mut self, device_id: DeviceId, event: DeviceEvent) {
+    fn device_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        device_id: DeviceId,
+        event: DeviceEvent,
+    ) {
+        self.set_event_loop(event_loop);
         if let Some(tx) = self.device_events.as_ref() {
             tx.send((device_id, event)).unwrap();
         }
@@ -136,9 +147,61 @@ impl Runtime {
         self.window_events.remove(&window_id);
     }
 
-    fn window_event(&mut self, window_id: WindowId, event: WindowEvent) {
+    fn window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        self.set_event_loop(event_loop);
         if let Some(tx) = self.window_events.get(&window_id) {
             tx.send(event).unwrap();
         }
+    }
+}
+
+struct AsyncApplication;
+
+impl ApplicationHandler for AsyncApplication {
+    fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+        if cause == StartCause::Init {
+            runtime().set_event_loop(event_loop);
+            run_ready_tasks();
+        }
+    }
+
+    fn suspended(&mut self, event_loop: &ActiveEventLoop) {
+        runtime().suspended(event_loop);
+        run_ready_tasks();
+    }
+
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        runtime().resumed(event_loop);
+        run_ready_tasks();
+    }
+
+    fn window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        runtime().window_event(event_loop, window_id, event);
+        run_ready_tasks();
+    }
+
+    fn device_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        device_id: DeviceId,
+        event: DeviceEvent,
+    ) {
+        runtime().device_event(event_loop, device_id, event);
+        run_ready_tasks();
+    }
+
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, _: ()) {
+        runtime().set_event_loop(event_loop);
+        run_ready_tasks();
     }
 }

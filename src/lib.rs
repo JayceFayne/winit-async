@@ -17,7 +17,7 @@ use winit::monitor::MonitorHandle;
 use winit::window::{CustomCursor, CustomCursorSource, Theme, Window, WindowAttributes};
 
 pub use crate::device::DeviceEventListener;
-pub use async_local_executor::{JoinHandle, TaskHandle, spawn_local};
+pub use async_local_executor::{JoinHandle, spawn_local};
 pub use error::Error;
 #[cfg(not(target_arch = "wasm32"))]
 pub use runtime::native::run_app;
@@ -59,6 +59,7 @@ pub fn system_theme() -> Option<Theme> {
 #[inline]
 pub async fn exit() -> ! {
     runtime().event_loop().exit();
+    async_local_executor::exit();
     pending::<()>().await;
     unreachable!()
 }
