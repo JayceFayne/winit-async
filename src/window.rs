@@ -39,15 +39,10 @@ impl Drop for WindowEvents {
     }
 }
 
-mod sealed {
-    pub trait Sealed {}
-}
-
-pub trait WindowExtAsync: sealed::Sealed {
+pub trait WindowExtAsync {
     fn events(&self) -> Option<WindowEvents>;
 }
 
-impl sealed::Sealed for Window {}
 impl WindowExtAsync for Window {
     #[inline]
     fn events(&self) -> Option<WindowEvents> {
