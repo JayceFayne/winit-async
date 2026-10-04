@@ -21,4 +21,4 @@ tokio = ["async-local-executor/tokio"]
 
 [dev-dependencies]
 anyhow = "1"
-vello = { version = "0.10", features = ["wgpu"] }
+vello = { version = "0.11", features = ["wgpu"] }

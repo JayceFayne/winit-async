@@ -2,20 +2,21 @@ use anyhow::{Error, bail};
 use std::f64;
 use std::sync::Arc;
 use vello::kurbo::{Affine, BezPath, Circle, Ellipse, Line, RoundedRect, Stroke};
-use vello::wgpu::CompositeAlphaMode;
-use vello::wgpu::CurrentSurfaceTexture;
+use vello::wgpu::util::TextureBlitter;
 use vello::wgpu::{
-    self, Device, DeviceDescriptor, ExperimentalFeatures, Extent3d, Features, Instance,
-    InstanceDescriptor, Limits, MemoryHints, PowerPreference, PresentMode, Queue,
-    RequestAdapterOptions, Surface, SurfaceConfiguration, Texture, TextureDescriptor,
-    TextureDimension, TextureFormat, TextureUsages, util::TextureBlitter,
+    BackendOptions, Backends, CommandEncoderDescriptor, CompositeAlphaMode, CurrentSurfaceTexture,
+    Device, DeviceDescriptor, ExperimentalFeatures, Extent3d, Features, Instance,
+    InstanceDescriptor, InstanceFlags, Limits, MemoryHints, PowerPreference, PresentMode, Queue,
+    RequestAdapterOptions, Surface, SurfaceColorSpace, SurfaceConfiguration, Texture,
+    TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView,
+    TextureViewDescriptor, Trace,
 };
 use vello::{AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, Scene, peniko::Color};
 use winit_async::winit::dpi::{LogicalSize, PhysicalSize};
 use winit_async::winit::{event::WindowEvent, window::Window};
 use winit_async::{WindowExtAsync, create_window, resumed, run_app};
 
-fn create_vello_texture(device: &Device, width: u32, height: u32) -> (Texture, wgpu::TextureView) {
+fn create_vello_texture(device: &Device, width: u32, height: u32) -> (Texture, TextureView) {
     let texture = device.create_texture(&TextureDescriptor {
         label: Some("vello-intermediate-texture"),
         size: Extent3d {
@@ -31,7 +32,7 @@ fn create_vello_texture(device: &Device, width: u32, height: u32) -> (Texture, w
         view_formats: &[],
     });
 
-    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let view = texture.create_view(&TextureViewDescriptor::default());
 
     (texture, view)
 }
@@ -44,7 +45,7 @@ struct RenderState {
     renderer: Renderer,
     surface_config: SurfaceConfiguration,
     vello_texture: Texture,
-    vello_view: wgpu::TextureView,
+    vello_view: TextureView,
     blitter: TextureBlitter,
     size: PhysicalSize<u32>,
     scene: Scene,
@@ -54,10 +55,10 @@ impl RenderState {
     async fn new(window: Arc<Window>) -> Result<Self, anyhow::Error> {
         let size = window.inner_size();
         let instance = Instance::new(InstanceDescriptor {
-            backends: wgpu::Backends::all(),
-            flags: wgpu::InstanceFlags::default(),
+            backends: Backends::all(),
+            flags: InstanceFlags::default(),
             memory_budget_thresholds: Default::default(),
-            backend_options: wgpu::BackendOptions::default(),
+            backend_options: BackendOptions::default(),
             display: None,
         });
         let surface = instance.create_surface(window.clone())?;
@@ -67,6 +68,7 @@ impl RenderState {
                 power_preference: PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
+                apply_limit_buckets: false,
             })
             .await?;
 
@@ -76,7 +78,7 @@ impl RenderState {
                 required_features: Features::empty(),
                 required_limits: Limits::default(),
                 memory_hints: MemoryHints::Performance,
-                trace: wgpu::Trace::Off,
+                trace: Trace::Off,
                 experimental_features: ExperimentalFeatures::disabled(),
             })
             .await?;
@@ -128,6 +130,7 @@ impl RenderState {
             alpha_mode,
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
+            color_space: SurfaceColorSpace::Auto,
         };
 
         surface.configure(&device, &surface_config);
@@ -209,13 +212,11 @@ impl RenderState {
             }
         };
 
-        let surface_view = frame
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+        let surface_view = frame.texture.create_view(&TextureViewDescriptor::default());
 
         let mut encoder = self
             .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            .create_command_encoder(&CommandEncoderDescriptor {
                 label: Some("vello-surface-blit"),
             });
 
@@ -223,8 +224,8 @@ impl RenderState {
             .copy(&self.device, &mut encoder, &self.vello_view, &surface_view);
 
         self.queue.submit(std::iter::once(encoder.finish()));
-
-        frame.present();
+        self.window.pre_present_notify();
+        self.queue.present(frame);
 
         Ok(())
     }

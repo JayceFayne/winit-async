@@ -1,4 +1,5 @@
 use std::convert::Infallible;
+use std::error::Error as StdError;
 use std::fmt::{Debug, Display};
 use winit::error::EventLoopError;
 
@@ -24,3 +25,5 @@ impl<E: Display> Display for Error<E> {
         }
     }
 }
+
+impl<E: StdError> StdError for Error<E> {}
